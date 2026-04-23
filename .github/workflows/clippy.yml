@@ -15,6 +15,7 @@ on:
     paths:
       - '.github/workflows/clippy.yml'
       - 'userspace/**'
+  workflow_dispatch:
 
 env:
   RUSTFLAGS: '-Dwarnings'

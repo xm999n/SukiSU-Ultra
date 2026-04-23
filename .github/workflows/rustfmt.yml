@@ -15,6 +15,7 @@ on:
     paths:
       - '.github/workflows/rustfmt.yml'
       - 'userspace/**'
+  workflow_dispatch:
 
 permissions:
   checks: write

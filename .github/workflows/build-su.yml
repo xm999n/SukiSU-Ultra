@@ -10,6 +10,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'userspace/su/**'
+  workflow_dispatch:
 jobs:
   build-su:
     name: Build userspace su

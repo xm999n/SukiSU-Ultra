@@ -3,13 +3,26 @@ name: handle-add-device-issue
 on:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_body:
+        description: Issue body content using the add-device template
+        required: true
+        type: string
+      issue_number:
+        description: Optional issue number to reference in the generated PR
+        required: false
+        default: manual
+        type: string
 
 jobs:
   handle-add-device:
-    if: github.event.label.name == 'add-device'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'add-device'
     runs-on: ubuntu-latest
     env:
-      ISSUE_CONTENT: ${{ github.event.issue.body }}
+      ISSUE_CONTENT: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_body || github.event.issue.body }}
+      ISSUE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
+      ISSUE_URL: ${{ github.event_name == 'workflow_dispatch' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) || github.event.issue.html_url }}
     steps:
       - uses: actions/checkout@v6
       - name: Parse issue body
@@ -33,8 +46,8 @@ jobs:
           title: "[add device]: ${{ steps.handle-add-device.outputs.device }}"
           body: |
             ${{ steps.handle-add-device.outputs.device }} has been added to the website.
-            Related issue: ${{ github.event.issue.html_url }}
-          branch: "add-device-${{ github.event.issue.number }}"
+            Related issue/workflow: ${{ env.ISSUE_URL }}
+          branch: "add-device-${{ env.ISSUE_REF }}-${{ github.run_id }}"
           labels: add-device
           delete-branch: true
           sign-commits: true
@@ -44,16 +57,17 @@ jobs:
           echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
           echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
       - uses: Kernel-SU/actions-comment-on-issue@master
-        if: ${{ steps.cpr.outputs.pull-request-number }}
+        if: ${{ github.event_name == 'issues' && steps.cpr.outputs.pull-request-number }}
         with:
           message: "Automatically created pull request: ${{ steps.cpr.outputs.pull-request-url }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: Kernel-SU/actions-comment-on-issue@master
-        if: steps.handle-add-device.outputs.success != 'true'
+        if: github.event_name == 'issues' && steps.handle-add-device.outputs.success != 'true'
         with:
           message: "Cannot create pull request. Please check the issue content. Or you can create a pull request manually."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: close issue
+        if: github.event_name == 'issues'
         uses: peter-evans/close-issue@v3
         with:
           issue-number: ${{ github.event.issue.number }}

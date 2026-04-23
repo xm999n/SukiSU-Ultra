@@ -18,6 +18,7 @@ on:
       - 'kernel/**/*.c'
       - 'kernel/**/*.h'
       - 'kernel/.clang-format'
+  workflow_dispatch:
 
 permissions:
   checks: write
