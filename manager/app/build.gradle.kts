@@ -104,7 +104,7 @@ android {
 
     androidResources {
         generateLocaleConfig = true
-        localeFilters += listOf("en", "zh-CN")
+        localeFilters += listOf("en", "zh-rCN")
     }
     compileSdk {
         version =
