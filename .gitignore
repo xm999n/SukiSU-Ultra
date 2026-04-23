@@ -7,3 +7,5 @@ AGENTS.md
 __pycache__
 /dist
 /repack-config.json
+/ALIAS_AP.jks
+/manager/.gradle-user/

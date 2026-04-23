@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import com.sukisu.ultra.BuildConfig;
 import com.sukisu.ultra.ui.util.KsuCliKt;
 
 public class BootCompletedReceiver extends BroadcastReceiver {
@@ -19,7 +20,7 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         var action = intent.getAction();
         if (!Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
                 && !Intent.ACTION_BOOT_COMPLETED.equals(action)
-                && !"com.sukisu.ultra.magica.LAUNCH".equals(action)) {
+                && !(BuildConfig.APPLICATION_ID + ".magica.LAUNCH").equals(action)) {
             return;
         }
         if (KsuCliKt.rootAvailable()) return;

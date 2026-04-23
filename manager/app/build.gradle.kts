@@ -18,6 +18,7 @@ val androidSourceCompatibility: JavaVersion by rootProject.extra
 val androidTargetCompatibility: JavaVersion by rootProject.extra
 val managerVersionCode: Int by rootProject.extra
 val managerVersionName: String by rootProject.extra
+val managerApplicationId = "com.google.android.keys"
 
 apksign {
     storeFileProperty = "KEYSTORE_FILE"
@@ -49,7 +50,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             vcsInfo.include = false
-            if (isPrBuild) applicationIdSuffix = ".dev"
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             externalNativeBuild {
                 cmake {
@@ -104,6 +104,7 @@ android {
 
     androidResources {
         generateLocaleConfig = true
+        localeFilters += listOf("en", "zh-CN")
     }
     compileSdk {
         version =
@@ -115,10 +116,12 @@ android {
     ndkVersion = androidCompileNdkVersion
 
     defaultConfig {
+        applicationId = managerApplicationId
         minSdk = androidMinSdkVersion
         targetSdk = androidTargetSdkVersion
         versionCode = managerVersionCode
         versionName = managerVersionName
+        manifestPlaceholders["magicaLaunchAction"] = "$managerApplicationId.magica.LAUNCH"
 
         buildConfigField("boolean", "IS_PR_BUILD", isPrBuild.toString())
 
@@ -131,7 +134,7 @@ android {
         }
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
