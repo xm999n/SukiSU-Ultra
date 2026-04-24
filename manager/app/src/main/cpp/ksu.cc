@@ -89,13 +89,28 @@ uint32_t get_version() {
 }
 
 bool get_allow_list(struct ksu_new_get_allow_list_cmd *cmd) {
-    return ksuctl(KSU_IOCTL_NEW_GET_ALLOW_LIST, cmd) == 0;
+    if (ksuctl(KSU_IOCTL_NEW_GET_ALLOW_LIST, cmd) == 0) {
+        return true;
+    }
+
+    int size = 0;
+    int uids[1024] = {};
+    if (legacy_get_allow_list(uids, &size)) {
+        cmd->count = size;
+        cmd->total_count = size;
+        memcpy(cmd->uids, uids, sizeof(int) * size);
+        return true;
+    }
+
+    return false;
 }
 
 bool is_safe_mode() {
     struct ksu_check_safemode_cmd cmd = {};
-    ksuctl(KSU_IOCTL_CHECK_SAFEMODE, &cmd);
-    return cmd.in_safe_mode;
+    if (ksuctl(KSU_IOCTL_CHECK_SAFEMODE, &cmd) == 0) {
+        return cmd.in_safe_mode;
+    }
+    return legacy_is_safe_mode();
 }
 
 bool is_lkm_mode() {
@@ -133,38 +148,49 @@ bool is_pr_build() {
 bool uid_should_umount(int uid) {
     struct ksu_uid_should_umount_cmd cmd = {};
     cmd.uid = uid;
-    ksuctl(KSU_IOCTL_UID_SHOULD_UMOUNT, &cmd);
-    return cmd.should_umount;
+    if (ksuctl(KSU_IOCTL_UID_SHOULD_UMOUNT, &cmd) == 0) {
+        return cmd.should_umount;
+    }
+    return legacy_uid_should_umount(uid);
 }
 
 bool set_app_profile(const app_profile *profile) {
     struct ksu_set_app_profile_cmd cmd = {};
     cmd.profile = *profile;
-    return ksuctl(KSU_IOCTL_SET_APP_PROFILE, &cmd) == 0;
+    if (ksuctl(KSU_IOCTL_SET_APP_PROFILE, &cmd) == 0) {
+        return true;
+    }
+    return legacy_set_app_profile(profile);
 }
 
 int get_app_profile(app_profile *profile) {
     struct ksu_get_app_profile_cmd cmd = {.profile = *profile};
     int ret = ksuctl(KSU_IOCTL_GET_APP_PROFILE, &cmd);
-    *profile = cmd.profile;
-    return ret;
+    if (ret == 0) {
+        *profile = cmd.profile;
+        return 0;
+    }
+    return legacy_get_app_profile(profile->key, profile) ? 0 : -1;
 }
 
 bool set_su_enabled(bool enabled) {
     struct ksu_set_feature_cmd cmd = {};
     cmd.feature_id = KSU_FEATURE_SU_COMPAT;
     cmd.value = enabled ? 1 : 0;
-    return ksuctl(KSU_IOCTL_SET_FEATURE, &cmd) == 0;
+    if (ksuctl(KSU_IOCTL_SET_FEATURE, &cmd) == 0) {
+        return true;
+    }
+    return legacy_set_su_enabled(enabled);
 }
 
 bool is_su_enabled() {
     struct ksu_get_feature_cmd cmd = {};
     cmd.feature_id = KSU_FEATURE_SU_COMPAT;
     if (ksuctl(KSU_IOCTL_GET_FEATURE, &cmd) != 0) {
-        return false;
+        return legacy_is_su_enabled();
     }
     if (!cmd.supported) {
-        return false;
+        return legacy_is_su_enabled();
     }
     return cmd.value != 0;
 }
@@ -203,6 +229,42 @@ bool is_kernel_umount_enabled() {
     return value != 0;
 }
 
-// Custom
-DEFINE_CACHED_GETTER(full_version, KSU_IOCTL_GET_FULL_VERSION, ksu_get_full_version_cmd, version_full, 255)
-DEFINE_CACHED_GETTER(hook_type, KSU_IOCTL_HOOK_TYPE, ksu_hook_type_cmd, hook_type, 32)
+static char g_full_version[255] = {0};
+
+bool get_full_version(char *buff) {
+    if (g_full_version[0] == '\0') {
+        struct ksu_get_full_version_cmd cmd = {0};
+        if (ksuctl(KSU_IOCTL_GET_FULL_VERSION, &cmd) == 0) {
+            strncpy(g_full_version, cmd.version_full, sizeof(g_full_version) - 1);
+            g_full_version[sizeof(g_full_version) - 1] = '\0';
+        } else {
+            legacy_get_full_version(g_full_version);
+        }
+    }
+    if (g_full_version[0] != '\0') {
+        strncpy(buff, g_full_version, sizeof(g_full_version) - 1);
+        buff[sizeof(g_full_version) - 1] = '\0';
+        return true;
+    }
+    return false;
+}
+
+static char g_hook_type[32] = {0};
+
+bool get_hook_type(char *buff) {
+    if (g_hook_type[0] == '\0') {
+        struct ksu_hook_type_cmd cmd = {0};
+        if (ksuctl(KSU_IOCTL_HOOK_TYPE, &cmd) == 0) {
+            strncpy(g_hook_type, cmd.hook_type, sizeof(g_hook_type) - 1);
+            g_hook_type[sizeof(g_hook_type) - 1] = '\0';
+        } else {
+            legacy_get_hook_type(g_hook_type, sizeof(g_hook_type));
+        }
+    }
+    if (g_hook_type[0] != '\0') {
+        strncpy(buff, g_hook_type, sizeof(g_hook_type) - 1);
+        buff[sizeof(g_hook_type) - 1] = '\0';
+        return true;
+    }
+    return false;
+}

@@ -5,6 +5,7 @@
 #ifndef KERNELSU_KSU_H
 #define KERNELSU_KSU_H
 
+#include <cstddef>
 #include <cstdint>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
@@ -46,6 +47,16 @@ bool get_allow_list(struct ksu_new_get_allow_list_cmd *);
 
 bool get_full_version(char* buff);
 bool get_hook_type(char *buff);
+
+bool legacy_get_allow_list(int *uids, int *size);
+bool legacy_is_safe_mode();
+bool legacy_uid_should_umount(int uid);
+bool legacy_set_app_profile(const app_profile *profile);
+bool legacy_get_app_profile(char *key, app_profile *profile);
+bool legacy_set_su_enabled(bool enabled);
+bool legacy_is_su_enabled();
+bool legacy_get_hook_type(char *hook_type, std::size_t size);
+void legacy_get_full_version(char *buff);
 
 inline std::pair<int, int> legacy_get_info() {
     int32_t version = -1;

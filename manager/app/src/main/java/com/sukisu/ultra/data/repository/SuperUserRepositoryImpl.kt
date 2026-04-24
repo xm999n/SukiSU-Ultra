@@ -3,9 +3,13 @@ package com.sukisu.ultra.data.repository
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import com.topjohnwu.superuser.Shell
@@ -29,64 +33,27 @@ class SuperUserRepositoryImpl : SuperUserRepository {
 
     override suspend fun getAppList(): Result<Pair<List<AppInfo>, List<Int>>> = withContext(Dispatchers.IO) {
         runCatching {
-            val result = connectKsuService {
-                Log.w(TAG, "KsuService disconnected")
+            val pm = ksuApp.packageManager
+            val start = SystemClock.elapsedRealtime()
+            val packages = getInstalledPackagesCurrentUser(pm)
+            val currentUserId = Process.myUid() / 100000
+
+            val newApps = packages.map {
+                val appInfo = it.applicationInfo
+                val uid = appInfo!!.uid
+                val profile = Natives.getAppProfile(it.packageName, uid)
+                AppInfo(
+                    label = appInfo.loadLabel(pm).toString(),
+                    packageInfo = it,
+                    profile = profile,
+                )
+            }.filter {
+                val ai = it.packageInfo.applicationInfo!!
+                !ai.isResourceOverlay
             }
 
-            var currentBinder = result.first
-            var currentConnection = result.second
-
-            try {
-                suspend fun reconnect(): IKsuInterface {
-                    withContext(Dispatchers.Main) {
-                        RootService.unbind(currentConnection)
-                    }
-                    val retry = connectKsuService { Log.w(TAG, "KsuService disconnected") }
-                    currentBinder = retry.first
-                    currentConnection = retry.second
-                    return IKsuInterface.Stub.asInterface(currentBinder)
-                }
-
-                val pm = ksuApp.packageManager
-                val start = SystemClock.elapsedRealtime()
-
-                var iface = IKsuInterface.Stub.asInterface(currentBinder)
-                val idsArray = try {
-                    iface.userIds
-                } catch (_: Exception) {
-                    iface = reconnect()
-                    iface.userIds
-                }
-
-                val slice = try {
-                    iface.getPackages(0)
-                } catch (_: Exception) {
-                    iface = reconnect()
-                    iface.getPackages(0)
-                }
-
-                val packages = slice.list
-                val newApps = packages.map {
-                    val appInfo = it.applicationInfo
-                    val uid = appInfo!!.uid
-                    val profile = Natives.getAppProfile(it.packageName, uid)
-                    AppInfo(
-                        label = appInfo.loadLabel(pm).toString(),
-                        packageInfo = it,
-                        profile = profile,
-                    )
-                }.filter {
-                    val ai = it.packageInfo.applicationInfo!!
-                    !ai.isResourceOverlay
-                }
-
-                Log.i(TAG, "load cost: ${SystemClock.elapsedRealtime() - start}")
-                Pair(newApps, idsArray.toList())
-            } finally {
-                withContext(Dispatchers.Main) {
-                    RootService.unbind(currentConnection)
-                }
-            }
+            Log.i(TAG, "load cost: ${SystemClock.elapsedRealtime() - start}")
+            Pair(newApps, listOf(currentUserId))
         }
     }
 
@@ -136,6 +103,15 @@ class SuperUserRepositoryImpl : SuperUserRepository {
             )
             val shell = KsuCli.SHELL
             task?.let { shell.execTask(it) }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getInstalledPackagesCurrentUser(pm: PackageManager): List<PackageInfo> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(0))
+        } else {
+            pm.getInstalledPackages(0)
         }
     }
 }

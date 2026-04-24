@@ -76,22 +76,31 @@ fun Uri.getFileName(context: Context): String? {
 fun createRootShell(globalMnt: Boolean = false): Shell {
     Shell.enableVerboseLogging = BuildConfig.DEBUG
     val builder = Shell.Builder.create()
-    return try {
-        if (globalMnt) {
+
+    fun buildSuShell(): Shell {
+        return if (globalMnt) {
+            builder.build("su", "-mm")
+        } else {
+            builder.build("su")
+        }
+    }
+
+    fun buildKsudShell(): Shell {
+        return if (globalMnt) {
             builder.build(getKsuDaemonPath(), "debug", "su", "-g")
         } else {
             builder.build(getKsuDaemonPath(), "debug", "su")
         }
-    } catch (e: Throwable) {
-        Log.w(TAG, "ksu failed: ", e)
+    }
+
+    return try {
+        buildSuShell()
+    } catch (suError: Throwable) {
+        Log.w(TAG, "su failed, falling back to ksud debug shell", suError)
         try {
-            if (globalMnt) {
-                builder.build("su", "-mm")
-            } else {
-                builder.build("su")
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "su failed: ", e)
+            buildKsudShell()
+        } catch (ksuError: Throwable) {
+            Log.e(TAG, "ksud debug shell failed, falling back to sh", ksuError)
             builder.build("sh")
         }
     }
